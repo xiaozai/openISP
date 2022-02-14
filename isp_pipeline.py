@@ -16,8 +16,8 @@ from model.fcs import FCS
 from model.bcc import BCC
 from model.hsc import HSC
 from model.nlm import NLM
+import cv2
 
-raw_path = './raw/test.RAW'
 config_path = './config/config.csv'
 
 f = open(config_path, 'r', encoding='utf-8-sig')
@@ -199,11 +199,16 @@ def vis_img(image, visualize, cmap=None):
         except:
             pass
 
+from PIL import Image
 
-rawimg = np.fromfile(raw_path, dtype='uint16', sep='')
-rawimg = rawimg.reshape([raw_h, raw_w])
+# raw_path = './raw/test.RAW'
+# rawimg = np.fromfile(raw_path, dtype='uint16', sep='')
+# rawimg = rawimg.reshape([raw_h, raw_w])
+
+raw_path = './raw/666.png'
+rawimg = Image.open(raw_path).convert('L')
+rawimg = np.asarray(rawimg).astype(np.uint16)
 print(50*'-' + '\nLoading RAW Image Done......')
-
 
 vis_img(rawimg, visualize, 'gray')
 

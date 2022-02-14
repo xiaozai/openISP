@@ -1,190 +1,13 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import csv
-from model.dpc import DPC
-from model.blc import BLC
-from model.aaf import AAF
-from model.awb import WBGC
-from model.cnf import CNF
-from model.cfa import CFA
-from model.gac import GC
-from model.ccm import CCM
-from model.csc import CSC
-from model.bnf import BNF
-from model.eeh import EE
-from model.fcs import FCS
-from model.bcc import BCC
-from model.hsc import HSC
-from model.nlm import NLM
+from PIL import Image
 
-raw_path = './raw/test.RAW'
-config_path = './config/config.csv'
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import mean_squared_error
+from scipy.optimize import minimize, rosen, rosen_der
 
-f = open(config_path, 'r', encoding='utf-8-sig')
-with f:
-    reader = csv.reader(f, delimiter=',')
-    raw_h = 1280
-    raw_w = 720
-    dpc_thres = 30
-    dpc_mode = 'gradient'
-    dpc_clip = 1023
-    bl_r = 0
-    bl_gr = 0
-    bl_gb = 0
-    bl_b = 0
-    alpha = 0
-    beta = 0
-    blc_clip = 1023
-    bayer_pattern = 'rggb'
-    r_gain = 1.5
-    gr_gain = 1.0
-    gb_gain = 1.0
-    b_gain = 1.1
-    awb_clip = 1023
-    cfa_mode = 'malvar'
-    cfa_clip = 1023
-    ccm = np.zeros((3, 4))
-    csc = np.zeros((3, 4))
-    bnf_dw = np.zeros((5,5))
-    bnf_rw = [1, 1, 1, 1]
-    bnf_rthres = [32, 64, 128]
-    bnf_clip = 255
-    edge_filter = np.zeros((3, 5))
-    ee_gain = [32, 128]
-    ee_thres = [32, 64]
-    ee_emclip = [-64, 64]
-    fcs_edge = [32, 64]
-    fcs_gain = 32
-    fcs_intercept = 2
-    fcs_slope = 3
-    hue = 128
-    saturation = 256
-    hsc_clip = 255
-    brightness = 10  # [-255, 255]
-    contrast = 10 / pow(2, 5)  # [-32,128]
-    bcc_clip = 255
-    nlm_h = 10
-    nlm_clip = 255
-    for row in reader:
-        parameter = row[0]
-        value = row[1]
-        description = row[2]
-        print(parameter, value, description)
-        if 'raw' in str(parameter):
-            raw_w = int(value) if '_w' in str(parameter) else raw_w
-            raw_h = int(value) if '_h' in str(parameter) else raw_h
-        elif 'dpc' in str(parameter):
-            dpc_thres = int(value) if '_thres' in str(parameter) else dpc_thres
-            dpc_mode  = str(value) if '_mode' in str(parameter) else dpc_mode
-            dpc_clip  = int(value) if '_clip' in str(parameter) else dpc_clip
-        elif 'bl' in str(parameter):
-            bl_r  = int(value) if '_r' in str(parameter) else bl_r
-            bl_gr = int(value) if '_gr' in str(parameter) else bl_gr
-            bl_gb = int(value) if '_gb' in str(parameter) else bl_gb
-            bl_b  = int(value) if '_b' in str(parameter) else bl_b
-            alpha = int(value) if '_alpha' in str(parameter) else alpha
-            beta  = int(value) if '_beta' in str(parameter) else beta
-            blc_clip = int(value) if '_clip' in str(parameter) else beta
-        elif 'bayer_pattern' in str(parameter):
-            bayer_pattern = str(value)
-        elif 'awb' in str(parameter):
-            r_gain  = int(value) if '_rgain' in str(parameter) else r_gain
-            gr_gain = int(value) if '_grgain' in str(parameter) else gr_gain
-            gb_gain = int(value) if '_gbgain' in str(parameter) else gb_gain
-            b_gain  = int(value) if '_bgain' in str(parameter) else b_gain
-            awb_clip = int(value) if '_clip' in str(parameter) else awb_clip
-        elif 'cfa' in str(parameter):
-            cfa_mode = str(value) if '_mode' in str(parameter) else cfa_mode
-            cfa_clip = int(value) if '_clip' in str(parameter) else cfa_clip
-        elif 'ccm' in str(parameter):
-            ccm[0][0] = int(value) if '_00' in str(parameter) else ccm[0][0]
-            ccm[0][1] = int(value) if '_01' in str(parameter) else ccm[0][1]
-            ccm[0][2] = int(value) if '_02' in str(parameter) else ccm[0][2]
-            ccm[0][3] = int(value) if '_03' in str(parameter) else ccm[0][3]
-            ccm[1][0] = int(value) if '_10' in str(parameter) else ccm[1][0]
-            ccm[1][1] = int(value) if '_11' in str(parameter) else ccm[1][1]
-            ccm[1][2] = int(value) if '_12' in str(parameter) else ccm[1][2]
-            ccm[1][3] = int(value) if '_13' in str(parameter) else ccm[1][3]
-            ccm[2][0] = int(value) if '_20' in str(parameter) else ccm[2][0]
-            ccm[2][1] = int(value) if '_21' in str(parameter) else ccm[2][1]
-            ccm[2][2] = int(value) if '_22' in str(parameter) else ccm[2][2]
-            ccm[2][3] = int(value) if '_23' in str(parameter) else ccm[2][3]
-        elif 'csc' in str(parameter):
-            csc[0][0] = 1024 * float(value) if '_00' in str(parameter) else csc[0][0]
-            csc[0][1] = 1024 * float(value) if '_01' in str(parameter) else csc[0][1]
-            csc[0][2] = 1024 * float(value) if '_02' in str(parameter) else csc[0][2]
-            csc[0][3] = 1024 * float(value) if '_03' in str(parameter) else csc[0][3]
-            csc[1][0] = 1024 * float(value) if '_10' in str(parameter) else csc[1][0]
-            csc[1][1] = 1024 * float(value) if '_11' in str(parameter) else csc[1][1]
-            csc[1][2] = 1024 * float(value) if '_12' in str(parameter) else csc[1][2]
-            csc[1][3] = 1024 * float(value) if '_13' in str(parameter) else csc[1][3]
-            csc[2][0] = 1024 * float(value) if '_20' in str(parameter) else csc[2][0]
-            csc[2][1] = 1024 * float(value) if '_21' in str(parameter) else csc[2][1]
-            csc[2][2] = 1024 * float(value) if '_22' in str(parameter) else csc[2][2]
-            csc[2][3] = 1024 * float(value) if '_23' in str(parameter) else csc[2][3]
-        elif 'bnf' in str(parameter):
-            bnf_dw[0][0] = int(value) if '_dw_00' in str(parameter) else bnf_dw[0][0]
-            bnf_dw[0][1] = int(value) if '_dw_01' in str(parameter) else bnf_dw[0][1]
-            bnf_dw[0][2] = int(value) if '_dw_02' in str(parameter) else bnf_dw[0][2]
-            bnf_dw[0][3] = int(value) if '_dw_03' in str(parameter) else bnf_dw[0][3]
-            bnf_dw[0][4] = int(value) if '_dw_04' in str(parameter) else bnf_dw[0][4]
-            bnf_dw[1][0] = int(value) if '_dw_10' in str(parameter) else bnf_dw[1][0]
-            bnf_dw[1][1] = int(value) if '_dw_11' in str(parameter) else bnf_dw[1][1]
-            bnf_dw[1][2] = int(value) if '_dw_12' in str(parameter) else bnf_dw[1][2]
-            bnf_dw[1][3] = int(value) if '_dw_13' in str(parameter) else bnf_dw[1][3]
-            bnf_dw[1][4] = int(value) if '_dw_14' in str(parameter) else bnf_dw[1][4]
-            bnf_dw[2][0] = int(value) if '_dw_20' in str(parameter) else bnf_dw[2][0]
-            bnf_dw[2][1] = int(value) if '_dw_21' in str(parameter) else bnf_dw[2][1]
-            bnf_dw[2][2] = int(value) if '_dw_22' in str(parameter) else bnf_dw[2][2]
-            bnf_dw[2][3] = int(value) if '_dw_23' in str(parameter) else bnf_dw[2][3]
-            bnf_dw[2][4] = int(value) if '_dw_24' in str(parameter) else bnf_dw[2][4]
-            bnf_rw[0] = int(value) if '_rw_0' in str(parameter) else bnf_rw[0]
-            bnf_rw[1] = int(value) if '_rw_1' in str(parameter) else bnf_rw[1]
-            bnf_rw[2] = int(value) if '_rw_2' in str(parameter) else bnf_rw[2]
-            bnf_rw[3] = int(value) if '_rw_3' in str(parameter) else bnf_rw[3]
-            bnf_rthres[0] = int(value) if '_rthres_0' in str(parameter) else bnf_rthres[0]
-            bnf_rthres[1] = int(value) if '_rthres_1' in str(parameter) else bnf_rthres[1]
-            bnf_rthres[2] = int(value) if '_rthres_2' in str(parameter) else bnf_rthres[2]
-            bnf_clip = int(value) if '_clip' in str(parameter) else bnf_clip
-        elif 'edge_filter' in str(parameter):
-            edge_filter[0][0] = int(value) if '_00' in str(parameter) else edge_filter[0][0]
-            edge_filter[0][1] = int(value) if '_01' in str(parameter) else edge_filter[0][1]
-            edge_filter[0][2] = int(value) if '_02' in str(parameter) else edge_filter[0][2]
-            edge_filter[0][3] = int(value) if '_03' in str(parameter) else edge_filter[0][3]
-            edge_filter[0][4] = int(value) if '_04' in str(parameter) else edge_filter[0][4]
-            edge_filter[1][0] = int(value) if '_10' in str(parameter) else edge_filter[1][0]
-            edge_filter[1][1] = int(value) if '_11' in str(parameter) else edge_filter[1][1]
-            edge_filter[1][2] = int(value) if '_12' in str(parameter) else edge_filter[1][2]
-            edge_filter[1][3] = int(value) if '_13' in str(parameter) else edge_filter[1][3]
-            edge_filter[1][4] = int(value) if '_14' in str(parameter) else edge_filter[1][4]
-            edge_filter[2][0] = int(value) if '_20' in str(parameter) else edge_filter[2][0]
-            edge_filter[2][1] = int(value) if '_21' in str(parameter) else edge_filter[2][1]
-            edge_filter[2][2] = int(value) if '_22' in str(parameter) else edge_filter[2][2]
-            edge_filter[2][3] = int(value) if '_23' in str(parameter) else edge_filter[2][3]
-            edge_filter[2][4] = int(value) if '_24' in str(parameter) else edge_filter[2][4]
-        elif 'ee' in str(parameter):
-            ee_gain[0] = int(value) if 'gain_min' in str(parameter) else ee_gain[0]
-            ee_gain[1] = int(value) if 'gain_max' in str(parameter) else ee_gain[1]
-            ee_thres[0] = int(value) if 'thres_min' in str(parameter) else ee_thres[0]
-            ee_thres[1] = int(value) if 'thres_max' in str(parameter) else ee_thres[1]
-            ee_emclip[0] = int(value) if 'emclip_min' in str(parameter) else ee_emclip[0]
-            ee_emclip[1] = int(value) if 'emclip_max' in str(parameter) else ee_emclip[1]
-        elif 'fcs' in str(parameter):
-            fcs_edge[0] = int(value) if 'edge_min' in str(parameter) else fcs_edge[0]
-            fcs_edge[1] = int(value) if 'edge_min' in str(parameter) else fcs_edge[1]
-            fcs_gain = int(value) if '_gain' in str(parameter) else fcs_gain
-            fcs_intercept = int(value) if '_intercept' in str(parameter) else fcs_intercept
-            fcs_slope = int(value) if '_slope' in str(parameter) else fcs_slope
-        elif 'nlm' in str(parameter):
-            nlm_h = int(value) if '_h' in str(parameter) else nlm_h
-            nlm_clip = int(value) if '_clip' in str(parameter) else nlm_clip
-        else:
-            hue = int(value) if 'hue' in str(parameter) else hue
-            saturation = int(value) if 'saturation' in str(parameter) else saturation
-            hsc_clip = int(value) if 'hsc_clip' in str(parameter) else hsc_clip
-            brightness = int(value) if 'brightness' in str(parameter) else brightness
-            contrast = int(value) if 'contrast' in str(parameter) else contrast
-            bcc_clip = int(value) if 'bcc_clip' in str(parameter) else bcc_clip
+import cv2
 
 visualize = True
 
@@ -200,138 +23,123 @@ def vis_img(image, visualize, cmap=None):
             pass
 
 
-rawimg = np.fromfile(raw_path, dtype='uint16', sep='')
-rawimg = rawimg.reshape([raw_h, raw_w])
-print(50*'-' + '\nLoading RAW Image Done......')
+def PSNR(original, processed):
+    ''' Peak signal-to-noise ratio (PSNR) is the ratio between the maximum possible power
+        of an image and the power of corrupting noise that affects the quality of its representation. '''
+    mse = np.mean((original - processed) ** 2)
+    if mse == 0:
+        # MSE is zero means no noise is present in the signal .
+        # Therefore PSNR have no importance.
+        return 100
+    max_pixel = 255.0
+    psnr = 20 * log10(max_pixel / sqrt(mse)) # dB
+    return psnr
+
+def mse(imageA, imageB):
+    # the 'Mean Squared Error' between the two images is the sum of the squared difference between the two images
+    mse_error = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
+    mse_error /= float(imageA.shape[0] * imageA.shape[1])
+    # return the MSE. The lower the error, the more "similar" the two images are.
+    return mse_error
+
+def grey_world(nimg):
+    nimg = nimg.transpose(2, 0, 1).astype(np.uint32)
+    mu_g = np.average(nimg[1])
+    nimg[0] = np.minimum(nimg[0]*(mu_g/np.average(nimg[0])),255)
+    nimg[2] = np.minimum(nimg[2]*(mu_g/np.average(nimg[2])),255)
+    return nimg.transpose(1, 2, 0).astype(np.uint8)
+
+def standard_deviation_weighted_grey_world(nimg, params):
+    gain_r, gain_g, gain_b = params
+    nimg = nimg.transpose(2, 0, 1)
+    nimg[0] = np.minimum(nimg[0]*gain_r,255)
+    nimg[1] = np.minimum(nimg[1]*gain_g,255)
+    nimg[2] = np.minimum(nimg[2]*gain_b,255)
+    return nimg.transpose(1, 2, 0).astype(np.uint8)
 
 
-vis_img(rawimg, visualize, 'gray')
+# Optimization : raw image -> ISP -> processed image -> loss -> optimization -> ...
 
-# dead pixel correction
-dpc = DPC(rawimg, dpc_thres, dpc_mode, dpc_clip)
-rawimg_dpc = dpc.execute()
-print(50*'-' + '\nDead Pixel Correction Done......')
+def from_pil(pimg):
+    pimg = pimg.convert(mode='RGB')
+    # nimg = np.asarray(pimg)
+    nimg = np.array(pimg).astype(np.uint8)
+    # nimg.flags.writeable = True
+    # nimg.setflags(write=1)
+    return nimg
 
-vis_img(rawimg_dpc, visualize, 'gray')
+def to_pil(nimg):
+    return Image.fromarray(np.uint8(nimg))
 
-# black level compensation
-parameter = [bl_r, bl_gr, bl_gb, bl_b, alpha, beta]
-blc = BLC(rawimg_dpc, parameter, bayer_pattern, blc_clip)
-rawimg_blc = blc.execute()
-print(50*'-' + '\nBlack Level Compensation Done......')
+raw_path = './raw/source.png'
+groundtruth_path = './raw/target.png'
 
+rawimg = Image.open(raw_path)
+rawimg = rawimg.resize((332, 467))
+# rawimg.show()
 
-vis_img(rawimg_blc, visualize, 'gray')
+groundtruth = Image.open(groundtruth_path)
+groundtruth = groundtruth.resize((332, 467))
+# groundtruth.show()
 
-# lens shading correction
+init_params = [0.5, 0.5, 0.5]
+# opt_params = [0.50000073, 0.50000114, 0.50000132]
 
-# anti-aliasing filter
-aaf = AAF(rawimg_blc)
-rawimg_aaf = aaf.execute()
-print(50*'-' + '\nAnti-aliasing Filtering Done......')
-
-
-vis_img(rawimg_aaf, visualize, 'gray')
-vis_img(rawimg_blc - rawimg_aaf, visualize, 'gray')
-
-# white balance gain control
-parameter = [r_gain, gr_gain, gb_gain, b_gain]
-awb = WBGC(rawimg_aaf, parameter, bayer_pattern, awb_clip)
-rawimg_awb = awb.execute()
-print(50*'-' + '\nWhite Balance Gain Done......')
-
-vis_img(rawimg_awb, visualize, 'gray')
-
-# chroma noise filtering
-cnf = CNF(rawimg_awb, bayer_pattern, 0, parameter, 1023)
-rawimg_cnf = cnf.execute()
-print(50*'-' + '\nChroma Noise Filtering Done......')
-
-vis_img(rawimg_cnf/4, visualize, 'gray')
-
-# color filter array interpolation
-cfa = CFA(rawimg_cnf, cfa_mode, bayer_pattern, cfa_clip)
-rgbimg_cfa = cfa.execute()
-print(50*'-' + '\nDemosaicing Done......')
-
-vis_img(rgbimg_cfa/4, visualize)
-
-# color correction matrix
-ccm = CCM(rgbimg_cfa, ccm)
-rgbimg_ccm = ccm.execute()
-print(50*'-' + '\nColor Correction Done......')
-
-vis_img(rgbimg_ccm, visualize)
-# gamma correction
-# look up table
-bw = 10
-gamma = 0.5
-mode = 'rgb'
-
-maxval = pow(2,bw)
-ind = range(0, maxval)
-val = [round(pow(float(i)/maxval, gamma) * maxval) for i in ind]
-lut = dict(zip(ind, val))
-#print(ind, val, lut)
-gc = GC(rgbimg_ccm, lut, mode)
-rgbimg_gc = gc.execute()
-print(50*'-' + '\nGamma Correction Done......')
-
-vis_img(rgbimg_gc, visualize)
-
-# color space conversion
-csc = CSC(rgbimg_ccm, csc)
-yuvimg_csc = csc.execute()
-print(50*'-' + '\nColor Space Conversion Done......')
-
-vis_img(yuvimg_csc[:,:,0], visualize, 'gray')
-
-# non-local means denoising
-nlm = NLM(yuvimg_csc[:,:,0], 1, 4, nlm_h, nlm_clip)
-yuvimg_nlm = nlm.execute()
-print(50*'-' + '\nNon Local Means Denoising Done......')
-
-vis_img(yuvimg_nlm, visualize, 'gray')
-
-# bilateral filter
-bnf = BNF(yuvimg_nlm, bnf_dw, bnf_rw, bnf_rthres, bnf_clip)
-yuvimg_bnf = bnf.execute()
-print(50*'-' + '\nBilateral Filtering Done......')
-
-vis_img(yuvimg_bnf, visualize, 'gray')
-
-# edge enhancement
-ee = EE(yuvimg_bnf[:,:], edge_filter, ee_gain, ee_thres, ee_emclip)
-yuvimg_ee, yuvimg_edgemap = ee.execute()
-print(50*'-' + '\nEdge Enhancement Done......')
-
-vis_img(yuvimg_ee, visualize)
-vis_img(yuvimg_edgemap, visualize)
-# false color suppresion
-fcs = FCS(yuvimg_csc[:,:,1:3], yuvimg_edgemap, fcs_edge, fcs_gain, fcs_intercept, fcs_slope)
-yuvimg_fcs = fcs.execute()
-print(50*'-' + '\nFalse Color Suppresion Done......')
-
-vis_img(yuvimg_fcs, visualize)
-
-# hue/saturation control
-hsc = HSC(yuvimg_fcs, hue, saturation, hsc_clip)
-yuvimg_hsc = hsc.execute()
-print(50*'-' + '\nHue/Saturation Adjustment Done......')
+pimg_gw = to_pil(grey_world(from_pil(rawimg)))
+# pimg_gw.show()
+pimg_sdwgw = to_pil(standard_deviation_weighted_grey_world(from_pil(rawimg), init_params))
+# pimg_sdwgw.show()
+# pimg_sdwgw02 = to_pil(standard_deviation_weighted_grey_world(from_pil(rawimg), opt_params))
 
 
-vis_img(yuvimg_hsc, visualize)
+mse_gw = mse(from_pil(pimg_gw), from_pil(groundtruth))
+ssim_gw = ssim(from_pil(pimg_gw), from_pil(groundtruth), multichannel=True)
+print('grey world - mse : %f, ssim : %f'%(mse_gw, ssim_gw))
 
-# brighyness/contrast control
-contrast = contrast / pow(2,5)    #[-32,128]
-bcc = BCC(yuvimg_ee, brightness, contrast, bcc_clip)
-yuvimg_bcc = bcc.execute()
-print(50*'-' + '\nBrightness/Contrast Adjustment Done......')
+mse_sdwgw = mse(from_pil(pimg_sdwgw), from_pil(groundtruth))
+ssim_sdwgw = ssim(from_pil(pimg_sdwgw), from_pil(groundtruth), multichannel=True)
+print('init sdwgw - mse : %f, ssim : %f'%(mse_sdwgw, ssim_sdwgw))
+# print(cv2.PNSR(from_pil(pimg_gw), from_pil(groundtruth)))
 
-vis_img(yuvimg_bcc, visualize)
 
-yuvimg_out = np.empty((raw_h, raw_w, 3), dtype=np.uint8)
-yuvimg_out[:,:,0] = yuvimg_bcc
-yuvimg_out[:,:,1:3] = yuvimg_hsc
+#
+source = from_pil(rawimg)
+target = from_pil(groundtruth)
 
-vis_img(yuvimg_out, visualize)
+def func(parameter):
+    processed = standard_deviation_weighted_grey_world(source, parameter)
+    loss = ssim(processed, target, multichannel=True)
+    # loss = mse(processed, target)
+    return loss
+#
+
+fitted_params = [0.5, 0.5, 0.5]
+# for i in range(10):
+#     print('\n --- %d iter ---- \n'%i)
+result = minimize(func, fitted_params, method='BFGS', jac=rosen_der)
+fitted_params = result.x
+print('loss : ', result.fun, ' params : ', fitted_params)
+
+pimg_opt = to_pil(standard_deviation_weighted_grey_world(from_pil(rawimg), fitted_params))
+
+mse_opt = mse(from_pil(pimg_opt), from_pil(groundtruth))
+ssim_opt = ssim(from_pil(pimg_opt), from_pil(groundtruth), multichannel=True)
+print('optimized sdwgw - mse : %f, ssim : %f'%(mse_opt, ssim_opt))
+
+
+# SSIM, the higher, two image more similarity
+
+fig, ((ax1, ax2, _), (ax3, ax4, ax5)) = plt.subplots(2, 3)
+ax1.imshow(from_pil(rawimg))
+ax1.set_title('input')
+ax2.imshow(from_pil(groundtruth))
+ax2.set_title('groundtruth')
+# ax6.imshow(from_pil(pimg_sdwgw02))
+# ax6.set_title('previous results')
+ax3.imshow(pimg_gw)
+ax3.set_title('grey world, mse: %f, ssim:%f'%(mse_gw, ssim_gw))
+ax4.imshow(pimg_sdwgw)
+ax4.set_title('sdwgw with params, mse: %f, ssim: %f'%(mse_sdwgw, ssim_sdwgw))
+ax5.imshow(from_pil(pimg_opt))
+ax5.set_title('after optimization, mse: %f, ssim: %f'%(mse_opt, ssim_opt))
+plt.show()
