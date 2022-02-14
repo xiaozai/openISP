@@ -71,15 +71,16 @@ def from_pil(pimg):
 def to_pil(nimg):
     return Image.fromarray(np.uint8(nimg))
 
-raw_path = './raw/source.png'
-groundtruth_path = './raw/target.png'
+raw_path = './raw/source02.png'
+groundtruth_path = './raw/target02.png'
 
 rawimg = Image.open(raw_path)
-rawimg = rawimg.resize((332, 467))
+# rawimg = rawimg.resize((332, 467))
 # rawimg.show()
+imgsz = rawimg.size
 
 groundtruth = Image.open(groundtruth_path)
-groundtruth = groundtruth.resize((332, 467))
+groundtruth = groundtruth.resize(imgsz)
 # groundtruth.show()
 
 init_params = [0.5, 0.5, 0.5]
